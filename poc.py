@@ -1,14 +1,12 @@
 import subprocess
 import numpy as np
-import sys
 import logging
 import threading
 import time
-import wave
 import pyaudio
 
 logging.basicConfig(
-    level=logging.DEBUG,
+    level=logging.INFO,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
@@ -24,7 +22,7 @@ class AudioMonitor:
         self.CHUNK = 4096
         self.FORMAT = pyaudio.paInt16
         self.CHANNELS = 1
-        self.RATE = 48000  # From FFmpeg debug output
+        self.RATE = 48000
         
         # Initialize PyAudio
         self.p = pyaudio.PyAudio()
@@ -36,16 +34,15 @@ class AudioMonitor:
         )
 
     def start_ffmpeg(self):
-        """Start FFmpeg process to get audio from stream"""
         command = [
             'ffmpeg',
             '-i', self.stream_url,
-            '-vn',  # Skip video
-            '-acodec', 'pcm_s16le',  # Convert to raw PCM
-            '-ar', str(self.RATE),  # Audio rate
-            '-ac', '1',  # Mono
-            '-f', 'wav',  # Output format
-            '-'  # Output to pipe
+            '-vn',
+            '-acodec', 'pcm_s16le',
+            '-ar', str(self.RATE),
+            '-ac', '1',
+            '-f', 'wav',
+            '-'
         ]
         
         if self.username and self.password:
@@ -53,64 +50,54 @@ class AudioMonitor:
             auth = base64.b64encode(f"{self.username}:{self.password}".encode()).decode()
             command.insert(1, '-headers')
             command.insert(2, f'Authorization: Basic {auth}\r\n')
-
-        logger.info(f"Starting FFmpeg with command: {' '.join(command)}")
         
         return subprocess.Popen(
             command,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            bufsize=10**8  # Large buffer
+            bufsize=10**8
         )
 
     def process_audio(self):
-        """Process audio data from FFmpeg"""
         process = self.start_ffmpeg()
         
-        # Skip WAV header (44 bytes)
+        # Skip WAV header
         process.stdout.read(44)
         
         logger.info("Starting audio processing loop")
         
         try:
             while self.running:
-                # Read audio data
                 audio_data = process.stdout.read(self.CHUNK)
                 if not audio_data:
-                    logger.error("No audio data received")
                     break
                 
-                # Calculate audio level (RMS)
+                # Convert to numpy array
                 audio_array = np.frombuffer(audio_data, dtype=np.int16)
-                rms = np.sqrt(np.mean(np.square(audio_array)))
-                db = 20 * np.log10(rms) if rms > 0 else -float('inf')
                 
-                # Normalize to 0-100 range
-                normalized_level = max(0, min(100, (db + 80) * 1.5))
-                logger.info(f"Audio Level: {normalized_level:.1f}")
+                # Calculate various metrics
+                rms = np.sqrt(np.mean(np.square(audio_array)))
+                peak = np.max(np.abs(audio_array))
+                mean = np.mean(np.abs(audio_array))
+                
+                logger.info(f"Raw metrics - RMS: {rms:.1f}, Peak: {peak}, Mean: {mean:.1f}")
                 
                 # Play audio
-                try:
-                    self.stream.write(audio_data)
-                except Exception as e:
-                    logger.error(f"Error playing audio: {e}")
-                    
+                self.stream.write(audio_data)
+                
         except Exception as e:
             logger.error(f"Error in audio processing: {e}")
         finally:
             process.terminate()
             process.wait()
-            logger.info("FFmpeg process terminated")
 
     def start(self):
-        """Start monitoring"""
         self.running = True
         self.audio_thread = threading.Thread(target=self.process_audio)
         self.audio_thread.start()
         logger.info("Audio monitoring started")
 
     def stop(self):
-        """Stop monitoring"""
         self.running = False
         if hasattr(self, 'audio_thread'):
             self.audio_thread.join()
