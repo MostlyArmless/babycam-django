@@ -18,6 +18,10 @@ class AudioMonitor:
         self.password = password
         self.running = False
         
+        # Thresholds
+        self.YELLOW_THRESHOLD = 1000
+        self.RED_THRESHOLD = 5000
+        
         # Audio settings
         self.CHUNK = 4096
         self.FORMAT = pyaudio.paInt16
@@ -64,7 +68,9 @@ class AudioMonitor:
         # Skip WAV header
         process.stdout.read(44)
         
-        logger.info("Starting audio processing loop")
+        logger.info("Starting audio monitoring")
+        logger.info(f"Yellow threshold: {self.YELLOW_THRESHOLD}")
+        logger.info(f"Red threshold: {self.RED_THRESHOLD}")
         
         try:
             while self.running:
@@ -72,15 +78,15 @@ class AudioMonitor:
                 if not audio_data:
                     break
                 
-                # Convert to numpy array
+                # Convert to numpy array and get peak value
                 audio_array = np.frombuffer(audio_data, dtype=np.int16)
-                
-                # Calculate various metrics
-                rms = np.sqrt(np.mean(np.square(audio_array)))
                 peak = np.max(np.abs(audio_array))
-                mean = np.mean(np.abs(audio_array))
                 
-                logger.info(f"Raw metrics - RMS: {rms:.1f}, Peak: {peak}, Mean: {mean:.1f}")
+                # Determine noise level
+                if peak >= self.RED_THRESHOLD:
+                    logger.warning(f"RED ALERT - Loud noise detected! Peak: {peak}")
+                elif peak >= self.YELLOW_THRESHOLD:
+                    logger.warning(f"YELLOW ALERT - Moderate noise detected. Peak: {peak}")
                 
                 # Play audio
                 self.stream.write(audio_data)
@@ -95,7 +101,6 @@ class AudioMonitor:
         self.running = True
         self.audio_thread = threading.Thread(target=self.process_audio)
         self.audio_thread.start()
-        logger.info("Audio monitoring started")
 
     def stop(self):
         self.running = False
