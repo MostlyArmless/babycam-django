@@ -1,147 +1,139 @@
-import cv2
+import subprocess
 import numpy as np
-import requests
+import sys
+import logging
 import threading
 import time
-from datetime import datetime
-import os
-from urllib.parse import urljoin
-import pyaudio
 import wave
-import queue
-import logging
+import pyaudio
 
-class IPWebcamMonitor:
-    def __init__(self, base_url, username, password, yellow_threshold=50, red_threshold=75):
-        """
-        Initialize the monitor with IP Webcam details and thresholds.
-        
-        Args:
-            base_url: Base URL of IP Webcam (e.g., 'http://192.168.0.222:8080')
-            username: Authentication username
-            password: Authentication password
-            yellow_threshold: Audio level for yellow alert (0-100)
-            red_threshold: Audio level for red alert (0-100)
-        """
-        self.base_url = base_url
-        self.auth = (username, password)
-        self.yellow_threshold = yellow_threshold
-        self.red_threshold = red_threshold
-        self.recording = False
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
+class AudioMonitor:
+    def __init__(self, stream_url, username=None, password=None):
+        self.stream_url = stream_url
+        self.username = username
+        self.password = password
         self.running = False
-        self.audio_queue = queue.Queue()
         
-        # Create recordings directory if it doesn't exist
-        self.recordings_dir = "recordings"
-        os.makedirs(self.recordings_dir, exist_ok=True)
+        # Audio settings
+        self.CHUNK = 4096
+        self.FORMAT = pyaudio.paInt16
+        self.CHANNELS = 1
+        self.RATE = 48000  # From FFmpeg debug output
         
-        # Setup logging
-        logging.basicConfig(level=logging.INFO)
-        self.logger = logging.getLogger(__name__)
+        # Initialize PyAudio
+        self.p = pyaudio.PyAudio()
+        self.stream = self.p.open(
+            format=self.FORMAT,
+            channels=self.CHANNELS,
+            rate=self.RATE,
+            output=True
+        )
 
-    def get_audio_level(self):
-        """Get current audio level from IP Webcam."""
-        try:
-            response = requests.get(urljoin(self.base_url, "audio_level"),
-                                 auth=self.auth,
-                                 timeout=1)
-            if response.status_code == 200:
-                return float(response.text)
-            return 0
-        except Exception as e:
-            self.logger.error(f"Error getting audio level: {e}")
-            return 0
-
-    def start_recording(self):
-        """Start recording video and audio."""
-        if self.recording:
-            return
-            
-        self.recording = True
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        video_filename = os.path.join(self.recordings_dir, f"recording_{timestamp}.mp4")
-        
-        # Start video recording using ffmpeg
-        stream_url = urljoin(self.base_url, "video")
-        cmd = [
+    def start_ffmpeg(self):
+        """Start FFmpeg process to get audio from stream"""
+        command = [
             'ffmpeg',
-            '-i', stream_url,
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            video_filename
+            '-i', self.stream_url,
+            '-vn',  # Skip video
+            '-acodec', 'pcm_s16le',  # Convert to raw PCM
+            '-ar', str(self.RATE),  # Audio rate
+            '-ac', '1',  # Mono
+            '-f', 'wav',  # Output format
+            '-'  # Output to pipe
         ]
         
-        self.ffmpeg_process = subprocess.Popen(cmd)
-        self.logger.info(f"Started recording to {video_filename}")
+        if self.username and self.password:
+            import base64
+            auth = base64.b64encode(f"{self.username}:{self.password}".encode()).decode()
+            command.insert(1, '-headers')
+            command.insert(2, f'Authorization: Basic {auth}\r\n')
 
-    def stop_recording(self):
-        """Stop current recording."""
-        if not self.recording:
-            return
-            
-        self.recording = False
-        if hasattr(self, 'ffmpeg_process'):
-            self.ffmpeg_process.terminate()
-            self.ffmpeg_process.wait()
-            self.logger.info("Stopped recording")
+        logger.info(f"Starting FFmpeg with command: {' '.join(command)}")
+        
+        return subprocess.Popen(
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            bufsize=10**8  # Large buffer
+        )
 
-    def monitor_audio_levels(self):
-        """Monitor audio levels and trigger recording."""
-        last_high_level_time = 0
-        recording_cooldown = 60  # 1 minute cooldown
-
-        while self.running:
-            level = self.get_audio_level()
-            current_time = time.time()
-            
-            if level >= self.red_threshold:
-                self.logger.info(f"Red alert! Audio level: {level}")
-                if not self.recording:
-                    self.start_recording()
-                last_high_level_time = current_time
-            elif level >= self.yellow_threshold:
-                self.logger.info(f"Yellow alert! Audio level: {level}")
-                if not self.recording:
-                    self.start_recording()
-                last_high_level_time = current_time
-            elif self.recording and (current_time - last_high_level_time) > recording_cooldown:
-                self.stop_recording()
-            
-            time.sleep(0.1)  # Check levels 10 times per second
+    def process_audio(self):
+        """Process audio data from FFmpeg"""
+        process = self.start_ffmpeg()
+        
+        # Skip WAV header (44 bytes)
+        process.stdout.read(44)
+        
+        logger.info("Starting audio processing loop")
+        
+        try:
+            while self.running:
+                # Read audio data
+                audio_data = process.stdout.read(self.CHUNK)
+                if not audio_data:
+                    logger.error("No audio data received")
+                    break
+                
+                # Calculate audio level (RMS)
+                audio_array = np.frombuffer(audio_data, dtype=np.int16)
+                rms = np.sqrt(np.mean(np.square(audio_array)))
+                db = 20 * np.log10(rms) if rms > 0 else -float('inf')
+                
+                # Normalize to 0-100 range
+                normalized_level = max(0, min(100, (db + 80) * 1.5))
+                logger.info(f"Audio Level: {normalized_level:.1f}")
+                
+                # Play audio
+                try:
+                    self.stream.write(audio_data)
+                except Exception as e:
+                    logger.error(f"Error playing audio: {e}")
+                    
+        except Exception as e:
+            logger.error(f"Error in audio processing: {e}")
+        finally:
+            process.terminate()
+            process.wait()
+            logger.info("FFmpeg process terminated")
 
     def start(self):
-        """Start the monitoring system."""
+        """Start monitoring"""
         self.running = True
-        self.monitor_thread = threading.Thread(target=self.monitor_audio_levels)
-        self.monitor_thread.start()
-        self.logger.info("Monitoring started")
+        self.audio_thread = threading.Thread(target=self.process_audio)
+        self.audio_thread.start()
+        logger.info("Audio monitoring started")
 
     def stop(self):
-        """Stop the monitoring system."""
+        """Stop monitoring"""
         self.running = False
-        if hasattr(self, 'monitor_thread'):
-            self.monitor_thread.join()
-        self.stop_recording()
-        self.logger.info("Monitoring stopped")
+        if hasattr(self, 'audio_thread'):
+            self.audio_thread.join()
+        if hasattr(self, 'stream'):
+            self.stream.stop_stream()
+            self.stream.close()
+        self.p.terminate()
+        logger.info("Audio monitoring stopped")
 
 def main():
-    # Example usage
-    monitor = IPWebcamMonitor(
-        base_url="http://192.168.0.222:8080",
+    monitor = AudioMonitor(
+        stream_url="http://192.168.0.222:8080/video/live.m3u8",
         username="mike",
-        password="asdfghjkl",
-        yellow_threshold=50,  # Adjust these thresholds based on testing
-        red_threshold=75
+        password="asdfghjkl"
     )
     
     try:
         monitor.start()
-        # Keep the script running
         while True:
-            time.sleep(1)
+            time.sleep(0.1)
     except KeyboardInterrupt:
+        print("\nStopping monitor...")
         monitor.stop()
-        print("\nMonitoring stopped")
 
 if __name__ == "__main__":
     main()
