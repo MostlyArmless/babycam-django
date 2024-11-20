@@ -43,3 +43,6 @@ media/
 # OS
 .DS_Store
 Thumbs.db
+
+# App-specific
+recordings/
