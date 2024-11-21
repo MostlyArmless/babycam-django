@@ -249,34 +249,32 @@ class AudioMonitorService:
         """Stop monitoring"""
         if not self.running:
             return
-            
+                
         logger.info(f"Stopping monitor for device: {self.device.name}")
         self.running = False
         
-        # Force stop any FFmpeg processes
-        if hasattr(self, 'recording_process'):
-            try:
-                self.recording_process.terminate()
-                self.recording_process.wait(timeout=2)
-            except:
-                self.recording_process.kill()
-        
-        # Wait for the monitoring thread to finish
-        if self.thread and self.thread.is_alive():
-            try:
-                self.thread.join(timeout=2)  # Reduced timeout
-                if self.thread.is_alive():
-                    logger.warning("Monitor thread didn't stop gracefully, forcing termination")
-                    # We might want to force kill FFmpeg here too
-                    import os
-                    import signal
-                    os.kill(os.getpid(), signal.SIGKILL)
-            except:
-                pass
-        
-        # Clear the instance from our registry
-        if self.device.id in self._instances:
-            del self._instances[self.device.id]
+        try:
+            # Stop recording if it's running
+            if self.recording and self.recording_process:
+                try:
+                    self.recording_process.terminate()
+                    self.recording_process.wait(timeout=2)
+                    logger.info("Stopped recording")
+                except:
+                    # If terminate fails, try to force kill
+                    if self.recording_process:  # Check again in case it changed
+                        self.recording_process.kill()
+                finally:
+                    self.recording = False
+                    self.recording_process = None
+                    self.current_recording_path = None
+            
+            # Clear the instance from our registry
+            if self.device.id in self._instances:
+                del self._instances[self.device.id]
+                
+        except Exception as e:
+            logger.error(f"Error during shutdown: {e}")
         
         logger.info(f"Monitor stopped for device: {self.device.name}")
 
