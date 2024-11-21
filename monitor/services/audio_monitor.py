@@ -33,11 +33,17 @@ class AudioMonitorService:
         self.thread = None
         self.channel_layer = get_channel_layer()
         
-        # Audio processing settings
+        # Audio processing & recording settings
         self.CHUNK = 4096
         self.RATE = 48000
+        self.MIN_RECORDING_DURATION = 10  # seconds
+        self.MAX_RECORDING_DURATION = 60  # seconds
+        self.QUIET_PERIOD_THRESHOLD = 5   # seconds
         self.recording = False
         self.current_recording_path = None
+        self.recording_start_time = None
+        self.last_alert_time = None
+        self.quiet_period_start = None
         
     def start_ffmpeg(self):
         """Start FFmpeg process for audio stream"""
@@ -75,16 +81,21 @@ class AudioMonitorService:
             return
                 
         self.recording = True
+        self.recording_start_time = time.time()
+        self.last_alert_time = time.time()
+        self.quiet_period_start = None
+        
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.current_recording_path = f"recordings/{self.device.name}_{timestamp}.mp4"
         
         command = [
             'ffmpeg',
+            '-y',  # Overwrite output files without asking
             '-i', self.device.stream_url,
-            '-c:v', 'copy',        # Copy video stream without re-encoding
-            '-c:a', 'aac',         # Use AAC for audio
-            '-strict', 'experimental',  # Allow experimental codecs
-            '-f', 'mp4',           # Force MP4 format
+            '-c:v', 'copy',
+            '-c:a', 'aac',
+            '-strict', 'experimental',
+            '-f', 'mp4',
             self.current_recording_path
         ]
         
@@ -112,9 +123,7 @@ class AudioMonitorService:
     def process_audio(self):
         """Main audio processing loop"""
         process = self.start_ffmpeg()
-        
-        # Skip WAV header
-        process.stdout.read(44)
+        process.stdout.read(44)  # Skip WAV header
         
         logger.info(f"Started monitoring for {self.device.name}")
         logger.info(f"Yellow threshold: {self.device.yellow_threshold}")
@@ -122,12 +131,10 @@ class AudioMonitorService:
         
         try:
             while self.running:
-                # Read and process audio chunk
                 audio_data = process.stdout.read(self.CHUNK)
                 if not audio_data:
                     break
                 
-                # Calculate peak value
                 audio_array = np.frombuffer(audio_data, dtype=np.int16)
                 peak = int(np.max(np.abs(audio_array)))
                 
@@ -137,41 +144,35 @@ class AudioMonitorService:
                     alert_level = 'RED'
                     if not self.recording:
                         self.start_recording()
-
                     logger.warning(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RED ALERT - Loud noise detected! Peak: {peak}")
                 elif peak >= self.device.yellow_threshold:
                     alert_level = 'YELLOW'
-                    if not self.recording:
-                        self.start_recording()
-                elif self.recording:
-                    # Stop recording if level has dropped
-                    self.stop_recording()
-                
-                    # Send update via WebSocket
-                    self.broadcast_level(peak, alert_level)
-
                     logger.warning(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - YELLOW ALERT - Moderate noise detected. Peak: {peak}")
                 else:
                     logger.debug(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - Current peak: {peak}")
                 
-                # Save significant events to database
+                # Check if we should stop recording
+                if self.recording and self.should_stop_recording(peak):
+                    self.stop_recording()
+                
+                # Save significant events and broadcast
                 if alert_level != 'NONE':
                     AudioEvent.objects.create(
                         device=self.device,
                         peak_value=peak,
                         alert_level=alert_level
                     )
+                    self.broadcast_level(peak, alert_level)
                 
-                # Broadcast level via WebSocket
-                self.broadcast_level(peak, alert_level)
-                
-                time.sleep(0.1)  # Small delay to prevent overwhelming the system
+                time.sleep(0.1)
                 
         except Exception as e:
             logger.error(f"Error in audio processing: {e}")
         finally:
             process.terminate()
             process.wait()
+            if self.recording:
+                self.stop_recording()
 
     def broadcast_level(self, peak, alert_level):
         """Send audio level update via WebSocket"""
@@ -238,3 +239,33 @@ class AudioMonitorService:
             del self._instances[self.device.id]
         
         logger.info(f"Monitor stopped for device: {self.device.name}")
+
+    def should_stop_recording(self, current_peak):
+        """Determine if recording should stop based on duration and sound level"""
+        if not self.recording:
+            return False
+            
+        current_time = time.time()
+        recording_duration = current_time - self.recording_start_time
+        
+        # Always stop if we hit max duration
+        if recording_duration >= self.MAX_RECORDING_DURATION:
+            logger.info("Stopping recording: Max duration reached")
+            return True
+            
+        # Don't stop if we haven't hit minimum duration
+        if recording_duration < self.MIN_RECORDING_DURATION:
+            return False
+            
+        # Handle quiet period tracking
+        if current_peak < self.device.yellow_threshold:
+            if self.quiet_period_start is None:
+                self.quiet_period_start = current_time
+            elif (current_time - self.quiet_period_start) >= self.QUIET_PERIOD_THRESHOLD:
+                logger.info("Stopping recording: Quiet period threshold reached")
+                return True
+        else:
+            self.quiet_period_start = None
+            self.last_alert_time = current_time
+            
+        return False
