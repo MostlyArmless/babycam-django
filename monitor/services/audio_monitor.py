@@ -1,6 +1,4 @@
-import base64
-import glob
-import os
+# monitor/services/audio_monitor.py
 import subprocess
 import numpy as np
 import logging
@@ -40,34 +38,6 @@ class AudioMonitorService:
         self.RATE = 48000
         self.recording = False
         self.current_recording_path = None
-        self.buffer_process = None
-        self.last_alert_time = 0
-        self.RECORDING_COOLDOWN = 10  # seconds to keep recording after noise drops
-
-    def start_buffer_process(self):
-        """Start FFmpeg process for buffer recording"""
-        buffer_dir = "buffer"
-        os.makedirs(buffer_dir, exist_ok=True)
-        
-        command = [
-            'ffmpeg',
-            '-i', self.device.stream_url,
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-f', 'segment',
-            '-segment_time', '2',
-            '-segment_wrap', '5',
-            '-segment_list_size', '5',
-            '-segment_format', 'mp4',
-            f'{buffer_dir}/buffer_%d.mp4'
-        ]
-        
-        if self.device.username and self.device.password:
-            auth = base64.b64encode(f"{self.device.username}:{self.device.password}".encode()).decode()
-            command.insert(1, '-headers')
-            command.insert(2, f'Authorization: Basic {auth}\r\n')
-        
-        return subprocess.Popen(command)
         
     def start_ffmpeg(self):
         """Start FFmpeg process for audio stream"""
@@ -100,7 +70,7 @@ class AudioMonitorService:
         )
 
     def start_recording(self):
-        """Start recording with pre-roll buffer"""
+        """Start recording video and audio"""
         if self.recording:
             return
                 
@@ -108,22 +78,13 @@ class AudioMonitorService:
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         self.current_recording_path = f"recordings/{self.device.name}_{timestamp}.mp4"
         
-        # Concatenate buffer files with current stream
-        buffer_files = sorted(glob.glob("buffer/buffer_*.mp4"))
-        
-        # Create file list for FFmpeg
-        with open("buffer/filelist.txt", "w") as f:
-            for bf in buffer_files:
-                f.write(f"file '{os.path.abspath(bf)}'\n")
-        
-        # Start recording process that concatenates buffer with live stream
         command = [
             'ffmpeg',
-            '-f', 'concat',
-            '-safe', '0',
-            '-i', 'buffer/filelist.txt',  # Buffer files
-            '-i', self.device.stream_url,  # Live stream
-            '-c', 'copy',                  # Copy without re-encoding
+            '-i', self.device.stream_url,
+            '-c:v', 'copy',        # Copy video stream without re-encoding
+            '-c:a', 'aac',         # Use AAC for audio
+            '-strict', 'experimental',  # Allow experimental codecs
+            '-f', 'mp4',           # Force MP4 format
             self.current_recording_path
         ]
         
@@ -134,7 +95,7 @@ class AudioMonitorService:
             command.insert(2, f'Authorization: Basic {auth}\r\n')
 
         self.recording_process = subprocess.Popen(command)
-        logger.info(f"Started recording to {self.current_recording_path} (includes pre-roll buffer)")
+        logger.info(f"Started recording to {self.current_recording_path}")
 
     def stop_recording(self):
         """Stop current recording"""
@@ -155,34 +116,45 @@ class AudioMonitorService:
         # Skip WAV header
         process.stdout.read(44)
         
+        logger.info(f"Started monitoring for {self.device.name}")
+        logger.info(f"Yellow threshold: {self.device.yellow_threshold}")
+        logger.info(f"Red threshold: {self.device.red_threshold}")
+        
         try:
             while self.running:
+                # Read and process audio chunk
                 audio_data = process.stdout.read(self.CHUNK)
                 if not audio_data:
                     break
                 
+                # Calculate peak value
                 audio_array = np.frombuffer(audio_data, dtype=np.int16)
                 peak = int(np.max(np.abs(audio_array)))
-                current_time = time.time()
                 
+                # Determine alert level
+                alert_level = 'NONE'
                 if peak >= self.device.red_threshold:
                     alert_level = 'RED'
-                    self.last_alert_time = current_time
-                    logger.warning(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RED ALERT - Loud noise detected! Peak: {peak}")
                     if not self.recording:
-                        logger.info("Starting recording with buffer due to RED alert")
-                        self.start_recording_with_buffer()
+                        self.start_recording()
+
+                    logger.warning(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - RED ALERT - Loud noise detected! Peak: {peak}")
                 elif peak >= self.device.yellow_threshold:
                     alert_level = 'YELLOW'
-                    self.last_alert_time = current_time
+                    if not self.recording:
+                        self.start_recording()
+                elif self.recording:
+                    # Stop recording if level has dropped
+                    self.stop_recording()
+                
+                    # Send update via WebSocket
+                    self.broadcast_level(peak, alert_level)
+
                     logger.warning(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - YELLOW ALERT - Moderate noise detected. Peak: {peak}")
                 else:
-                    alert_level = 'NONE'
-                    # Only stop recording if we've been quiet for RECORDING_COOLDOWN seconds
-                    if self.recording and (current_time - self.last_alert_time) > self.RECORDING_COOLDOWN:
-                        logger.info(f"Noise level normal for {self.RECORDING_COOLDOWN} seconds, stopping recording")
-                        self.stop_recording()
+                    logger.debug(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')[:-3]} - Current peak: {peak}")
                 
+                # Save significant events to database
                 if alert_level != 'NONE':
                     AudioEvent.objects.create(
                         device=self.device,
@@ -190,12 +162,16 @@ class AudioMonitorService:
                         alert_level=alert_level
                     )
                 
-                time.sleep(0.1)
+                # Broadcast level via WebSocket
+                self.broadcast_level(peak, alert_level)
                 
+                time.sleep(0.1)  # Small delay to prevent overwhelming the system
+                
+        except Exception as e:
+            logger.error(f"Error in audio processing: {e}")
         finally:
-            if self.buffer_process:
-                self.buffer_process.terminate()
-                self.buffer_process.wait(timeout=2)
+            process.terminate()
+            process.wait()
 
     def broadcast_level(self, peak, alert_level):
         """Send audio level update via WebSocket"""
@@ -224,10 +200,6 @@ class AudioMonitorService:
             return
             
         self.running = True
-        # Start buffer process
-        self.buffer_process = self.start_ffmpeg_buffer()
-
-        # Start monitoring thread
         self.thread = threading.Thread(target=self.process_audio)
         self.thread.start()
         logger.info(f"Started monitoring thread for device: {self.device.name}")
@@ -239,10 +211,6 @@ class AudioMonitorService:
             
         logger.info(f"Stopping monitor for device: {self.device.name}")
         self.running = False
-
-        if self.buffer_process:
-            self.buffer_process.terminate()
-            self.buffer_process.wait(timeout=2)
         
         # Force stop any FFmpeg processes
         if hasattr(self, 'recording_process'):
@@ -270,79 +238,3 @@ class AudioMonitorService:
             del self._instances[self.device.id]
         
         logger.info(f"Monitor stopped for device: {self.device.name}")
-
-    def start_ffmpeg_buffer(self):
-        """Start FFmpeg process that maintains a rolling buffer of segments"""
-        buffer_dir = "buffer"
-        os.makedirs(buffer_dir, exist_ok=True)
-        
-        command = [
-            'ffmpeg',
-            '-i', self.device.stream_url,
-            '-c:v', 'copy',
-            '-c:a', 'aac',
-            '-f', 'segment',
-            '-segment_time', '2',          # Create 2-second segments
-            '-segment_wrap', '5',          # Keep only last 5 segments (10 seconds)
-            '-segment_list_size', '5',
-            '-segment_format', 'mp4',
-            f'{buffer_dir}/buffer_%d.mp4'  # Buffer files
-        ]
-        
-        if self.device.username and self.device.password:
-            import base64
-            auth = base64.b64encode(f"{self.device.username}:{self.device.password}".encode()).decode()
-            command.insert(1, '-headers')
-            command.insert(2, f'Authorization: Basic {auth}\r\n')
-        
-        return subprocess.Popen(command)
-    
-    def start_recording_with_buffer(self):
-        """Start recording including buffer content"""
-        if self.recording:
-            logger.info("Recording already in progress, skipping")
-            return
-                
-        self.recording = True
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        self.current_recording_path = f"recordings/{self.device.name}_{timestamp}.mp4"
-
-        os.makedirs('recordings', exist_ok=True)
-
-        # Wait briefly for any ongoing buffer writes to complete
-        time.sleep(0.5)
-
-        # Get list of buffer files
-        buffer_files = sorted(glob.glob("buffer/buffer_*.mp4"))
-        logger.info(f"Found {len(buffer_files)} buffer files to include in recording")
-
-        if not buffer_files:
-            logger.warning("No buffer files found, starting direct recording")
-            self.start_direct_recording()
-            return
-            
-        # Create concat file
-        with open("buffer/filelist.txt", "w") as f:
-            for bf in buffer_files:
-                if os.path.getsize(bf) > 0:  # Only include non-empty files
-                    f.write(f"file '{os.path.abspath(bf)}'\n")
-
-    def start_direct_recording(self):
-        """Start recording without buffer when buffer isn't available"""
-        command = [
-            'ffmpeg',
-            '-y',
-            '-i', self.device.stream_url,
-        ]
-        
-        if self.device.username and self.device.password:
-            auth = base64.b64encode(f"{self.device.username}:{self.device.password}".encode()).decode()
-            command.extend(['-headers', f'Authorization: Basic {auth}\r\n'])
-        
-        command.extend([
-            '-c', 'copy',
-            self.current_recording_path
-        ])
-
-        logger.info(f"Starting direct recording with command: {' '.join(command)}")
-        self.recording_process = subprocess.Popen(command)
