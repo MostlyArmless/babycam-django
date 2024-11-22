@@ -2,44 +2,50 @@
 
 Turn your old phone and laptop into a baby camera+monitor for multiple parents and kids!
 
+## Features Roadmap
+
+* ❌ Multiple parent units can view multiple kid rooms, live video+audio feeds
+* ✅ Audio level detection with alerts, with customizable audio thresholds
+* ✅ Video recording on alert
+* ❌ Shared chat so parents can leave messages for each other
+* ❌ Schedule which parent will receive alerts when kids wake up
+* ❌ Ability to adjust the schedule on-the-fly
+  * e.g. if mom was supposed to do the 3AM wakeup but had a rough sleep, she can set an override and go to sleep, and dad will get the alert instead
+
 ## System Diagram
 
 ```mermaid
 graph TB
-    subgraph "Parent Units"
-        P1[Parent Unit 1] -->|HTTP/WS| API
-        P1 -->|WebSocket| CH
-        P2[Parent Unit 2] -->|HTTP/WS| API
-        P2 -->|WebSocket| CH
-    end
-
-    subgraph "Kid Rooms"
-        K1[Kid Room Device 1] -->|CamON Stream| WS[(WebSocket Server)]
-        K2[Kid Room Device 2] -->|CamON Stream| WS
-    end
 
     subgraph "Server Components"
         subgraph "Django Backend"
-            WS -->|Audio Stream| AM[Audio Monitor Service]
-            AM -->|Analyze Levels| AL[Audio Level Detection]
-            AL -->|Store Events| DB[(PostgreSQL)]
-            AL -->|Notify| CH[Channels/WebSocket]
-            
-            AM -->|If Alert| REC[Recording Service]
-            REC -->|Save| DISK[Disk Storage]
+            AM[Audio Monitor Service] -->|Save loud audio timestamps| DB[(PostgreSQL DB)]
+            AM -->|Notify when kids loud| CH[Channels/WebSocket]
+            AM -->|Save mp4 when kids loud| DISK[(Disk Storage)]
             
             API[Django REST API] -->|Query| DB
-            ADM[Django Admin] -->|Manage| DB
         end
     end
+
+    subgraph "Parent's Rooms"
+        P1[Parent 1 Device] <-->|HTTP/WS| API
+        P2[Parent 2 Device] <-->|HTTP/WS| API
+    end
+
+    subgraph "Kid's Rooms"
+        K1[Kid 1 Device] -->|HTTP Stream| AM
+        K2[Kid 2 Device] -->|HTTP Stream| AM
+    end
+
+    
 
     classDef django fill:#44B78B,color:white
     classDef database fill:#336791,color:white
     classDef websocket fill:#F7DF1E,color:black
     classDef device fill:#FF6B6B,color:white
-    class AM,API,ADM,REC django
-    class DB database
-    class WS,CH websocket
+    class AM,API,REC django
+    class DB,DISK database
+    class CH websocket
     class K1,K2,P1,P2 device
 ```
 
