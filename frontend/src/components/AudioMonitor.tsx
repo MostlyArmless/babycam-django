@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import useWebSocket from 'react-use-websocket';
 
 interface AudioMessage {
@@ -32,12 +33,12 @@ const AudioMonitor = () => {
   const audioData = lastMessage ? JSON.parse(lastMessage.data) as WebSocketMessage : null;
   
   // Get connection status text
-  const connectionStatus = {
+  const connectionStatus = readyState !== undefined ? {
     [WebSocket.CONNECTING]: 'Connecting',
     [WebSocket.OPEN]: 'Connected',
     [WebSocket.CLOSING]: 'Closing',
     [WebSocket.CLOSED]: 'Disconnected',
-  }[readyState];
+  }[readyState as WebSocket['readyState']] : 'Unknown';
 
   let audioDataView = audioData && (
     <div className="space-y-2">
@@ -70,11 +71,19 @@ const AudioMonitor = () => {
         </span>
       </div>
 
-      <div className="text-xs text-gray-400">
-        Last update: {new Date(audioData.message.timestamp).toLocaleTimeString()}
-      </div>
+      
     </div>
   );
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // tick the clock every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+  
+    return () => clearInterval(timer); // Cleanup on unmount
+  }, []);
 
   return (
     <div className="p-4">
@@ -86,6 +95,17 @@ const AudioMonitor = () => {
       </div>
 
       {audioData ? audioDataView : "No audio data yet"}
+      <div className="text-xs text-gray-400 text-right">
+        Current time: {currentTime.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit', 
+          second: '2-digit', 
+          hour12: true 
+        })}
+      </div>
+      <div className="text-xs text-gray-400 text-right">
+        Last event at: {audioData ? new Date(audioData.message.timestamp + 'Z').toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }) : 'N/A'}
+      </div>
     </div>
   );
 };
