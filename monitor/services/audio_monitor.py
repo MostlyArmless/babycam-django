@@ -18,6 +18,7 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S.%f'  # Include milliseconds
 )
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)  # Ensure DEBUG level is enabled
 
 class AudioMonitorService:
     _instances = {}
@@ -216,24 +217,37 @@ class AudioMonitorService:
 
     def broadcast_level(self, peak, alert_level):
         """Send audio level update via WebSocket"""
-        message = {
-            'type': 'audio_level',
-            'device_id': self.device.id,
-            'peak': peak,
-            'alert_level': alert_level,
-            'timestamp': datetime.now().isoformat()
-        }
-        
         try:
-            async_to_sync(self.channel_layer.group_send)(
-                f'monitor_{self.device.id}',
+            channel_layer = get_channel_layer()
+            if channel_layer is None:
+                logger.error("No channel layer available!")
+                return
+
+            message = {
+                'type': 'audio_level',
+                'device_id': self.device.id,
+                'peak': peak,
+                'alert_level': alert_level,
+                'timestamp': datetime.now().isoformat()
+            }
+            
+            group_name = f'monitor_{self.device.id}'
+            logger.debug(f"Broadcasting to group {group_name}: {message}")
+            
+            # Get list of channels in group (for debugging)
+            channels = getattr(channel_layer, '_groups', {}).get(group_name, set())
+            logger.debug(f"Current channels in group {group_name}: {channels}")
+
+            async_to_sync(channel_layer.group_send)(
+                group_name,
                 {
                     'type': 'monitor_message',
                     'message': message
                 }
             )
+            logger.debug(f"Broadcast complete: {peak} ({alert_level})")
         except Exception as e:
-            logger.error(f"Error broadcasting level: {e}")
+            logger.error(f"Error broadcasting level: {e}", exc_info=True)
 
     def start(self):
         """Start monitoring"""

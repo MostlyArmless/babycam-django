@@ -45,10 +45,35 @@ graph TB
 
 ## Project setup
 
+### Backend
 On Ubuntu dev machines:
 
-```bash
+```zsh
 # first create a venv, then:
-sudo apt-get install portaudio19-dev # pre-req for pyaudio on ubuntu
+sudo apt install portaudio19-dev # pre-req for pyaudio on ubuntu
+sudo apt install redis-server # needed for inter-process communication between test_monitor.py and the main django server.
 pip install -r requirements.txt
+```
+
+### Frontend
+```zsh
+cd ./frontend
+npm install
+```
+
+## Running the app
+
+### Backend
+
+```zsh
+# Need to run it this way instead of the usual `python manage.py run_server` in order for websockets to work
+# NOTE: This doesn't do hot reloading of backend changes, you'll have to ctrl+C and re-run it
+python -m daphne babycam.asgi:application -b 0.0.0.0 -p 8000
+```
+
+### Frontend
+```zsh
+cd frontend
+npm run dev
+# Then alt+click the URL to open it in the browser
 ```
