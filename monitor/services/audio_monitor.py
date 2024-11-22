@@ -140,8 +140,8 @@ class AudioMonitorService:
             self.current_recording_path = None
 
     def process_audio(self):
-        process = self.start_ffmpeg()
-        process.stdout.read(44)  # Skip WAV header
+        ffmpeg_process = self.start_ffmpeg()
+        ffmpeg_process.stdout.read(44)  # Skip WAV header
         
         logger.info(f"Started monitoring for {self.device.name}")
         logger.info(f"Yellow threshold: {self.device.yellow_threshold}")
@@ -149,7 +149,7 @@ class AudioMonitorService:
         
         try:
             while self.running:
-                audio_data = process.stdout.read(self.CHUNK)
+                audio_data = ffmpeg_process.stdout.read(self.CHUNK)
                 if not audio_data:
                     break
                 
@@ -212,8 +212,8 @@ class AudioMonitorService:
         finally:
             if self.recording:
                 self.stop_recording()
-            process.terminate()
-            process.wait()
+            ffmpeg_process.terminate()
+            ffmpeg_process.wait()
 
     def broadcast_level(self, peak, alert_level):
         """Send audio level update via WebSocket"""
