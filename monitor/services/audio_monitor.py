@@ -1,16 +1,16 @@
-# monitor/services/audio_monitor.py
 import queue
 import subprocess
 import numpy as np
 import logging
 import threading
 import time
-import base64
 from datetime import datetime
 from channels.layers import get_channel_layer
 from asgiref.sync import async_to_sync
 from django.conf import settings
 from ..models import MonitorDevice, AudioEvent
+
+WAV_HEADER_LENGTH = 44
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,7 +30,7 @@ class AudioMonitorService:
             cls._instances[device_id] = cls(device)
         return cls._instances[device_id]
     
-    def __init__(self, device):
+    def __init__(self, device: MonitorDevice):
         self.device = device
         self.running = False
         self.thread = None
@@ -99,7 +99,11 @@ class AudioMonitorService:
             '-y'  # Overwrite output files without asking
         ]
         
-        if self.device.username and self.device.password:
+        if self.device.is_authenticated:
+            if not self.device.username or not self.device.password:
+                logger.error(f"Device {self.device.name} is marked as authenticated but missing credentials")
+                self.recording = False
+                return
             import base64
             auth = base64.b64encode(f"{self.device.username}:{self.device.password}".encode()).decode()
             command.extend(['-headers', f'Authorization: Basic {auth}\r\n'])
@@ -141,7 +145,7 @@ class AudioMonitorService:
 
     def process_audio(self):
         ffmpeg_process = self.start_ffmpeg()
-        ffmpeg_process.stdout.read(44)  # Skip WAV header
+        ffmpeg_process.stdout.read(WAV_HEADER_LENGTH)  # Skip WAV header
         
         logger.info(f"Started monitoring for {self.device.name}")
         logger.info(f"Yellow threshold: {self.device.yellow_threshold}")

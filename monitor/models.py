@@ -3,6 +3,7 @@ from django.db import models
 class MonitorDevice(models.Model):
     name = models.CharField(max_length=100)
     stream_url = models.URLField()
+    is_authenticated = models.BooleanField(default=False)
     username = models.CharField(max_length=100)
     password = models.CharField(max_length=100)
     yellow_threshold = models.IntegerField(default=1000)
