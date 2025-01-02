@@ -4,7 +4,7 @@ Turn your old phone and laptop into a baby camera+monitor for multiple parents a
 
 ## Features Roadmap
 
-* ❌ Multiple parent units can view multiple kid rooms, live video+audio feeds
+* ✅ Multiple parent units can view multiple kid rooms, live video+audio feeds
 * ✅ Audio level detection with alerts, with customizable audio thresholds
 * ✅ Video recording on alert
 * ❌ Shared chat so parents can leave messages for each other
