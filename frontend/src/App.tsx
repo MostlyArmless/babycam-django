@@ -1,4 +1,4 @@
-import AudioMonitor from './components/AudioMonitor'
+import AudioVideoMonitor from "./components/AudioVideoMonitor";
 
 function App() {
   return (
@@ -7,10 +7,10 @@ function App() {
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900">Baby Monitor</h1>
         </div>
-        <AudioMonitor />
+        <AudioVideoMonitor />
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

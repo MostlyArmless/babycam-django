@@ -64,7 +64,7 @@ pip install -r requirements.txt
 ### Frontend
 ```zsh
 cd ./frontend
-npm install
+npm install --legacy-peer-deps # required to get around the peer dependency on React 16 by @gumlet/react-hls-player
 ```
 
 ## Running the app
