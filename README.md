@@ -28,13 +28,13 @@ graph TB
     end
 
     subgraph "Parent's Rooms"
-        P1[Parent 1 Device] <-->|HTTP/WS| API
-        P2[Parent 2 Device] <-->|HTTP/WS| API
+        P1[Parent 1 Laptop] <-->|HTTP/WS| API
+        P2[Parent 2 Laptop] <-->|HTTP/WS| API
     end
 
     subgraph "Kid's Rooms"
-        K1[Kid 1 Device] -->|HTTP Stream| AM
-        K2[Kid 2 Device] -->|HTTP Stream| AM
+        K1[Kid 1 Android Webcam] -->|HTTP Stream| AM
+        K2[Kid 2 Android Webcam] -->|HTTP Stream| AM
     end
 
     
