@@ -55,7 +55,7 @@ graph TB
 On Ubuntu dev machines:
 
 ```zsh
-# first create a venv, then:
+# first create and activate a venv, then:
 sudo apt install portaudio19-dev # pre-req for pyaudio on ubuntu
 sudo apt install redis-server # needed for inter-process communication between test_monitor.py and the main django server.
 pip install -r requirements.txt
