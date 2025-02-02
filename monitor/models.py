@@ -26,3 +26,15 @@ class AudioEvent(models.Model):
 
     def __str__(self):
         return f"{self.device.name} - {self.alert_level} - {self.timestamp}"
+    
+class ChatRoom(models.Model):
+    name = models.CharField(max_length=255, unique=True)
+
+class ChatMessage(models.Model):
+    room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE)
+    message = models.TextField()
+    timestamp = models.DateTimeField(auto_now_add=True)
+    user = models.CharField(max_length=255)
+    
+    def __str__(self):
+        return f"{self.user} - {self.timestamp}"
