@@ -76,7 +76,11 @@ ALTER ROLE babycam_user SET search_path = public, pg_catalog;
 Next, install the apt and python packages:
 
 ```zsh
-# first create and activate a venv, then:
+# first create and activate a venv:
+python -m venv venv
+source venv/bin/activate
+# Don't forget to set the vscode interpreter to the venv python after the above.
+
 sudo apt install portaudio19-dev # pre-req for pyaudio on ubuntu
 sudo apt install redis-server # needed for inter-process communication between test_monitor.py and the main django server.
 pip install -r requirements.txt
