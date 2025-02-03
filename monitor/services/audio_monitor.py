@@ -145,6 +145,8 @@ class AudioMonitorService:
 
     def process_audio(self):
         ffmpeg_process = self.start_ffmpeg()
+        if ffmpeg_process.stdout is None:
+            raise RuntimeError("Failed to capture ffmpeg stdout.")
         ffmpeg_process.stdout.read(WAV_HEADER_LENGTH)  # Skip WAV header
         
         logger.info(f"Started monitoring for {self.device.name}")
@@ -178,7 +180,10 @@ class AudioMonitorService:
                 # Check recording status
                 if self.recording:
                     current_time = time.time()
-                    recording_duration = current_time - self.recording_start_time
+                    if self.recording_start_time is None:
+                        recording_duration = 0
+                    else:
+                        recording_duration = current_time - self.recording_start_time
                     
                     # Start quiet period tracking if below yellow threshold
                     if peak < self.device.yellow_threshold:
@@ -302,7 +307,7 @@ class AudioMonitorService:
             return False
             
         current_time = time.time()
-        recording_duration = current_time - self.recording_start_time
+        recording_duration = 0 if self.recording_start_time is None else current_time - self.recording_start_time
         
         # Always stop if we hit max duration
         if recording_duration >= self.MAX_RECORDING_DURATION:

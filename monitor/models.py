@@ -1,6 +1,7 @@
 from django.db import models
 
 class MonitorDevice(models.Model):
+    id = models.UUIDField()
     name = models.CharField(max_length=100)
     stream_url = models.URLField()
     is_authenticated = models.BooleanField(default=False)
