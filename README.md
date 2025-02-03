@@ -52,7 +52,28 @@ graph TB
 ## Project setup
 
 ### Backend
+
 On Ubuntu dev machines:
+
+First you need to set up postgresql and create a database for the project. You can do this by running the following commands:
+
+```zsh
+# This assumes you already have postgres installed, if not, go do that.
+sudo -u postgres psql
+# Then from within psql, create the user and database:
+CREATE USER babycam_user WITH PASSWORD 'Use DB_PASSWORD from the .env file here';
+CREATE DATABASE babycam;
+GRANT ALL PRIVILEGES ON DATABASE babycam TO babycam_user;
+\q
+
+# Now, connect to the babycam DB:
+sudo -u postgres psql -d babycam
+# Then from within psql, set up the schema and permissions:
+ALTER SCHEMA public OWNER TO babycam_user;
+ALTER ROLE babycam_user SET search_path = public, pg_catalog;
+```
+
+Next, install the apt and python packages:
 
 ```zsh
 # first create and activate a venv, then:
@@ -62,6 +83,7 @@ pip install -r requirements.txt
 ```
 
 ### Frontend
+
 ```zsh
 cd ./frontend
 npm install --legacy-peer-deps # required to get around the peer dependency on React 16 by @gumlet/react-hls-player
