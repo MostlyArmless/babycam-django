@@ -83,3 +83,9 @@ cd frontend
 npm run dev
 # Then alt+click the URL to open it in the browser
 ```
+
+# Dev Notes
+
+## Django stuff
+
+When you make changes to the `models.py` file, you need to run `python manage.py makemigrations` and `python manage.py migrate` to apply the changes to the database.
