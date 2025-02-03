@@ -16,7 +16,7 @@ class MonitorDevice(models.Model):
 
 class AudioEvent(models.Model):
     device = models.ForeignKey(MonitorDevice, on_delete=models.CASCADE)
-    timestamp = models.DateTimeField(auto_now_add=True)
+    timestamp = models.DateTimeField()
     peak_value = models.IntegerField()
     alert_level = models.CharField(
         max_length=10,
@@ -32,9 +32,9 @@ class ChatRoom(models.Model):
 
 class ChatMessage(models.Model):
     room = models.ForeignKey(ChatRoom, on_delete=models.CASCADE)
-    message = models.TextField()
-    timestamp = models.DateTimeField(auto_now_add=True)
-    user = models.CharField(max_length=255)
+    text = models.TextField()
+    timestamp = models.DateTimeField()
+    user = models.CharField(max_length=255) # TODO enforce username length on the frontend
     
     def __str__(self):
         return f"{self.user} - {self.timestamp}"
