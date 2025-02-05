@@ -115,3 +115,5 @@ npm run dev
 ## Django stuff
 
 When you make changes to the `models.py` file, you need to run `python manage.py makemigrations` and `python manage.py migrate` to apply the changes to the database.
+
+TODO I'd like to replace pip with uv and use a toml file for the dependencies, makes it easier to see which deps are direct deps vs indirect deps. uv is faster than pip and has a better lockfile format.
