@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import useWebSocket from "react-use-websocket";
 import WebcamVideoStream from "./WebcamVideoStream";
+import { WebsocketConnectionStatusBadge } from "./WebsocketConnectionStatusBadge";
 
 interface AudioMessage {
   type: "audio_level";
@@ -22,14 +23,15 @@ const AudioVideoMonitor = () => {
         console.log("Raw WebSocket message received:", event.data);
         try {
           const parsed = JSON.parse(event.data);
+          // TODO
           console.log("Parsed message:", parsed);
         } catch (e) {
           console.error("Error parsing message:", e);
         }
       },
-      onOpen: () => console.log("WebSocket connection established"),
-      onClose: () => console.log("WebSocket connection closed"),
-      onError: (event) => console.error("WebSocket error:", event),
+      onOpen: () => console.log("ws a/v monitor connection established"),
+      onClose: () => console.log("ws a/v monitor connection closed"),
+      onError: (event) => console.error("ws a/v monitor error:", event),
     }
   );
 
@@ -37,17 +39,6 @@ const AudioVideoMonitor = () => {
   const audioData = lastMessage
     ? (JSON.parse(lastMessage.data) as WebSocketMessage)
     : null;
-
-  // Get connection status text
-  const connectionStatus =
-    readyState !== undefined
-      ? {
-          [WebSocket.CONNECTING]: "Connecting",
-          [WebSocket.OPEN]: "Connected",
-          [WebSocket.CLOSING]: "Closing",
-          [WebSocket.CLOSED]: "Disconnected",
-        }[readyState as WebSocket["readyState"]]
-      : "Unknown";
 
   let audioDataView = audioData && (
     <div className="space-y-2">
@@ -101,22 +92,12 @@ const AudioVideoMonitor = () => {
   return (
     <>
       <WebcamVideoStream
+        // TODO get the IP from the server which in turn should get it from the .env file
         streamUrl={"http://192.168.0.222:8080/video/live.m3u8"}
       />
 
       <div className="p-4">
-        <div className="mb-4">
-          <span
-            className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-sm font-medium
-          ${
-            readyState === WebSocket.OPEN
-              ? "bg-green-100 text-green-800"
-              : "bg-red-100 text-red-800"
-          }`}
-          >
-            {connectionStatus}
-          </span>
-        </div>
+        <WebsocketConnectionStatusBadge readyState={readyState} />
 
         {audioData ? audioDataView : "No audio data yet"}
         <div className="text-xs text-gray-400 text-right">

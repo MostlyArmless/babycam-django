@@ -2,6 +2,7 @@ import AudioVideoMonitor from "./components/AudioVideoMonitor";
 import Chat from "./components/Chat";
 
 function App() {
+  const username = "Me"; // TODO get this from the server, I think we need to implement user login first tho
   return (
     <>
       <div className="min-h-screen bg-gray-100 py-6 flex flex-col justify-center">
@@ -14,7 +15,7 @@ function App() {
               <AudioVideoMonitor />
             </div>
             <div className="w-1/3 ml-4">
-              <Chat />
+              <Chat username={username} />
             </div>
           </div>
         </div>
