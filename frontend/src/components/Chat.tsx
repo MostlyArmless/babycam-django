@@ -28,13 +28,63 @@ const formatTimestamp = (date: Date): string => {
     .replace(/(\d+)\/(\d+)\/(\d+)/, "$3-$1-$2");
 };
 
+const getRelativeTimeString = (timestamp: string): string => {
+  const date = new Date(timestamp);
+  const now = new Date();
+  const diffMs = now.getTime() - date.getTime();
+  const diffSecs = Math.floor(diffMs / 1000);
+  const diffMins = Math.floor(diffSecs / 60);
+  const diffHours = Math.floor(diffMins / 60);
+  const diffDays = Math.floor(diffHours / 24);
+
+  if (diffDays > 0) {
+    return `${diffDays}d ago`;
+  }
+  if (diffHours > 0) {
+    const remainingMins = diffMins % 60;
+    return `${diffHours}h${remainingMins}m ago`;
+  }
+  if (diffMins > 0) {
+    return `${diffMins}m ago`;
+  }
+  return `${diffSecs}s ago`;
+};
+
+const hasRecentMessage = (messages: Message[]): boolean => {
+  const now = new Date();
+  return messages.some((msg) => {
+    const msgDate = new Date(msg.timestamp);
+    return now.getTime() - msgDate.getTime() < 60000; // 60 seconds
+  });
+};
+
 const Chat: React.FC<ChatProps> = ({ username }) => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
   const [readyState, setReadyState] = useState<ReadyState>(
     WebSocket.CONNECTING
   );
+  const [updateKey, setUpdateKey] = useState(0); // Force re-render of relative times
   const wsRef = useRef<WebSocket | null>(null);
+  const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const setupUpdateInterval = (msgs: Message[]) => {
+    // Clear existing interval if any
+    if (updateIntervalRef.current) {
+      clearInterval(updateIntervalRef.current);
+    }
+
+    // Set new interval based on message ages
+    const interval = hasRecentMessage(msgs) ? 1000 : 30000; // 1s or 30s
+    updateIntervalRef.current = setInterval(() => {
+      setUpdateKey((prev) => prev + 1);
+
+      // Dynamically adjust interval if needed
+      if (interval === 1000 && !hasRecentMessage(msgs)) {
+        setupUpdateInterval(msgs);
+      }
+    }, interval);
+  };
 
   useEffect(() => {
     // Establish the WebSocket connection
@@ -51,10 +101,15 @@ const Chat: React.FC<ChatProps> = ({ username }) => {
       const data = JSON.parse(evt.data);
       if (data.type === "chat_message") {
         const msg: Message = data.message;
-        setMessages((prev) => [...prev, msg]);
+        setMessages((prev) => {
+          const newMessages = [...prev, msg];
+          setupUpdateInterval(newMessages);
+          return newMessages;
+        });
       } else if (data.type === "chat_history") {
         const msgs: Message[] = data.messages;
         setMessages(msgs);
+        setupUpdateInterval(msgs);
       }
     };
 
@@ -64,6 +119,9 @@ const Chat: React.FC<ChatProps> = ({ username }) => {
     };
 
     return () => {
+      if (updateIntervalRef.current) {
+        clearInterval(updateIntervalRef.current);
+      }
       wsRef.current?.close();
     };
   }, []);
@@ -116,7 +174,8 @@ const Chat: React.FC<ChatProps> = ({ username }) => {
               <strong>{message.user}:</strong> {message.text}
             </div>
             <small className="text-gray-500">
-              {formatTimestamp(new Date(message.timestamp))}
+              {formatTimestamp(new Date(message.timestamp))} (
+              {getRelativeTimeString(message.timestamp)})
             </small>
           </div>
         ))}
