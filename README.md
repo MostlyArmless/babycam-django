@@ -7,7 +7,9 @@ Turn your old phone and laptop into a baby camera+monitor for multiple parents a
 * ✅ Multiple parent units can view multiple kid rooms, live video+audio feeds
 * ✅ Audio level detection with alerts, with customizable audio thresholds
 * ✅ Video recording on alert
-* ❌ Shared chat so parents can leave messages for each other
+  * ❌ View recorded video clips in the UI
+* ✅ Shared chat so parents can leave messages for each other
+* ❌ User auth
 * ❌ Schedule which parent will receive alerts when kids wake up
 * ❌ Ability to adjust the schedule on-the-fly
   * e.g. if mom was supposed to do the 3AM wakeup but had a rough sleep, she can set an override and go to sleep, and dad will get the alert instead
@@ -115,5 +117,3 @@ npm run dev
 ## Django stuff
 
 When you make changes to the `models.py` file, you need to run `python manage.py makemigrations` and `python manage.py migrate` to apply the changes to the database.
-
-TODO I'd like to replace pip with uv and use a toml file for the dependencies, makes it easier to see which deps are direct deps vs indirect deps. uv is faster than pip and has a better lockfile format.
