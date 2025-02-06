@@ -171,7 +171,7 @@ const Chat = () => {
   return (
     <>
       <div className="flex justify-between items-center mb-2">
-      <WebsocketConnectionStatusBadge readyState={readyState} />
+        <WebsocketConnectionStatusBadge readyState={readyState} />
         <Button
           variant="destructive"
           onClick={handleDeleteHistory}
@@ -228,19 +228,30 @@ const Chat = () => {
           </div>
         ))}
       </div>
-      <div className="input-container" style={{ display: "flex", gap: "10px" }}>
-        <Input
-          type="text"
+      <div
+        className="input-container"
+        style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}
+      >
+        <textarea
+          className="flex min-h-[40px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-hidden"
           value={input}
-          onChange={(e) => setInput(e.target.value)}
+          onChange={(e) => {
+            setInput(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = e.target.scrollHeight + "px";
+          }}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (e.key === "Enter" && !e.shiftKey) {
               e.preventDefault();
               handleSend();
             }
           }}
+          rows={1}
+          style={{ flex: 1 }}
         />
-        <Button onClick={handleSend}>Send</Button>
+        <Button onClick={handleSend} style={{ height: "40px" }}>
+          Send
+        </Button>
       </div>
     </>
   );
