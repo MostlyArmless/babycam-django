@@ -3,15 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { WebsocketConnectionStatusBadge } from "./WebsocketConnectionStatusBadge";
 import { ReadyState } from "react-use-websocket";
+import { useUser } from "@/contexts/UserContext";
 
 interface Message {
   user: string;
   text: string;
   timestamp: string;
-}
-
-interface ChatProps {
-  username: string;
 }
 
 const formatTimestamp = (date: Date): string => {
@@ -58,7 +55,8 @@ const hasRecentMessage = (messages: Message[]): boolean => {
   });
 };
 
-const Chat: React.FC<ChatProps> = ({ username }) => {
+const Chat = () => {
+  const { username } = useUser();
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState<string>("");
   const [readyState, setReadyState] = useState<ReadyState>(
