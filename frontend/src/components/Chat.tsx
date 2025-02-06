@@ -142,9 +142,46 @@ const Chat = () => {
     setInput("");
   };
 
+  const handleDeleteHistory = async () => {
+    if (
+      !confirm(
+        "Are you sure you want to delete all chat history? This cannot be undone."
+      )
+    ) {
+      return;
+    }
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/chat/main/history`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to delete chat history");
+      }
+
+      setMessages([]);
+    } catch (error) {
+      console.error("Error deleting chat history:", error);
+      alert("Failed to delete chat history. Please try again.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   return (
     <>
+      <div className="flex justify-between items-center mb-2">
       <WebsocketConnectionStatusBadge readyState={readyState} />
+        <Button
+          variant="destructive"
+          onClick={handleDeleteHistory}
+          disabled={isDeleting}
+        >
+          {isDeleting ? "Deleting..." : "Delete History"}
+        </Button>
+      </div>
       <div
         className="chat-container"
         style={{
