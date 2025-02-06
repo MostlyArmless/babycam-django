@@ -186,10 +186,13 @@ const Chat = () => {
           height: "400px",
           width: "350px",
           overflowY: "auto",
-          border: "2px solid #ccc",
-          borderRadius: "8px",
-          padding: "10px",
-          marginBottom: "10px",
+          border: "1px solid #e5e7eb",
+          borderRadius: "12px",
+          padding: "16px",
+          marginBottom: "12px",
+          backgroundColor: "white",
+          scrollbarWidth: "thin",
+          scrollbarColor: "#cbd5e1 transparent",
         }}
         ref={(el) => {
           if (el) {
@@ -197,44 +200,79 @@ const Chat = () => {
           }
         }}
       >
-        <div className="messages"></div>
+        <style>
+          {`
+            .chat-container::-webkit-scrollbar {
+              width: 8px;
+            }
+            .chat-container::-webkit-scrollbar-track {
+              background: transparent;
+            }
+            .chat-container::-webkit-scrollbar-thumb {
+              background-color: #cbd5e1;
+              border-radius: 20px;
+              border: 2px solid transparent;
+            }
+          `}
+        </style>
         {messages.map((message, index) => (
           <div
             key={index}
-            className={`message ${message.user === "Me" ? "me" : "other"}`}
             style={{
-              backgroundColor: "#f3f4f6",
-              borderRadius: "12px",
-              padding: "10px",
+              display: "flex",
+              justifyContent:
+                message.user === username ? "flex-end" : "flex-start",
               marginBottom: "12px",
-              maxWidth: "85%",
-              boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
-              border: "1px solid #e5e7eb",
             }}
           >
-            <div style={{ marginBottom: "4px" }}>
-              <strong>{message.user}:</strong> {message.text}
-            </div>
-            <small
-              className="text-gray-500"
+            <div
               style={{
-                display: "block",
-                fontSize: "0.75rem",
+                backgroundColor:
+                  message.user === username ? "#0ea5e9" : "#f3f4f6",
+                color: message.user === username ? "white" : "black",
+                borderRadius: "12px",
+                padding: "8px 12px",
+                maxWidth: "85%",
+                boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
               }}
             >
-              {formatTimestamp(new Date(message.timestamp))} (
-              {getRelativeTimeString(message.timestamp)})
-            </small>
+              <div style={{ marginBottom: "4px", wordBreak: "break-word" }}>
+                <strong>
+                  {message.user === username ? "Me" : message.user}:
+                </strong>{" "}
+                {message.text}
+              </div>
+              <small
+                style={{
+                  display: "block",
+                  fontSize: "0.75rem",
+                  opacity: 0.8,
+                }}
+              >
+                {formatTimestamp(new Date(message.timestamp))} (
+                {getRelativeTimeString(message.timestamp)})
+              </small>
+            </div>
           </div>
         ))}
       </div>
       <div
         className="input-container"
-        style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}
+        style={{
+          display: "flex",
+          gap: "8px",
+          alignItems: "flex-end",
+          backgroundColor: "white",
+          padding: "12px",
+          borderRadius: "12px",
+          border: "1px solid #e5e7eb",
+          width: "350px",
+        }}
       >
         <textarea
-          className="flex min-h-[40px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-hidden"
+          className="flex min-h-[40px] w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 resize-none overflow-hidden"
           value={input}
+          placeholder="Type a message..."
           onChange={(e) => {
             setInput(e.target.value);
             e.target.style.height = "auto";
@@ -249,7 +287,10 @@ const Chat = () => {
           rows={1}
           style={{ flex: 1 }}
         />
-        <Button onClick={handleSend} style={{ height: "40px" }}>
+        <Button
+          onClick={handleSend}
+          style={{ height: "40px", minWidth: "80px" }}
+        >
           Send
         </Button>
       </div>
