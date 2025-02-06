@@ -1,11 +1,14 @@
-from django.urls import path
+from django.urls import path, include
+from rest_framework.routers import DefaultRouter
 from . import views
+from .views import MonitorDeviceViewSet, AudioEventViewSet
+
+router = DefaultRouter()
+router.register(r"monitor", MonitorDeviceViewSet)
+router.register(r"audio-events", AudioEventViewSet)
 
 urlpatterns = [
-    path(
-        "monitor/<int:device_id>/", views.get_monitor_device, name="get_monitor_device"
-    ),
-    # We'll add view URLs later
+    path("", include(router.urls)),
     path(
         "chat/<str:room_name>/history",
         views.delete_chat_history,

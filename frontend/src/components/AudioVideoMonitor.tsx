@@ -20,6 +20,9 @@ interface MonitorDevice {
   name: string;
   stream_url: string;
   is_active: boolean;
+  is_authenticated: boolean;
+  username: string;
+  password: string;
 }
 
 const AudioVideoMonitor = () => {
@@ -43,24 +46,21 @@ const AudioVideoMonitor = () => {
     fetchDevice();
   }, [deviceId]);
 
-  const { lastMessage, readyState } = useWebSocket(
-    `ws://localhost:8000/ws/monitor/${deviceId}/`,
-    {
-      onMessage: (event) => {
-        console.log("Raw WebSocket message received:", event.data);
-        try {
-          const parsed = JSON.parse(event.data);
-          // TODO
-          console.log("Parsed message:", parsed);
-        } catch (e) {
-          console.error("Error parsing message:", e);
-        }
-      },
-      onOpen: () => console.log("ws a/v monitor connection established"),
-      onClose: () => console.log("ws a/v monitor connection closed"),
-      onError: (event) => console.error("ws a/v monitor error:", event),
-    }
-  );
+  const { lastMessage, readyState } = useWebSocket(`/ws/monitor/${deviceId}/`, {
+    onMessage: (event) => {
+      console.log("monitor ws message received:", event.data);
+      try {
+        const parsed = JSON.parse(event.data);
+        // TODO
+        console.log("Parsed message:", parsed);
+      } catch (e) {
+        console.error("Error parsing message:", e);
+      }
+    },
+    onOpen: () => console.log("ws a/v monitor connection established"),
+    onClose: () => console.log("ws a/v monitor connection closed"),
+    onError: (event) => console.error("ws a/v monitor error:", event),
+  });
 
   // Parse the lastMessage into our expected format
   const audioData = lastMessage
@@ -122,12 +122,19 @@ const AudioVideoMonitor = () => {
 
   return (
     <>
-      <WebcamVideoStream streamUrl={device.stream_url} />
+      {audioData ? audioDataView : "No audio data yet"}
+
+      <WebcamVideoStream
+        streamUrl={device.stream_url.replace(
+          "http://192.168.0.222:8080",
+          "/webcam"
+        )}
+        username={device.username}
+        password={device.password}
+      />
 
       <div className="p-4">
         <WebsocketConnectionStatusBadge readyState={readyState} />
-
-        {audioData ? audioDataView : "No audio data yet"}
         <div className="text-xs text-gray-400 text-right">
           Current time:{" "}
           {currentTime.toLocaleTimeString("en-US", {

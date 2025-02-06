@@ -1,9 +1,20 @@
 from django.shortcuts import render
-from django.http import JsonResponse
-from .models import ChatRoom, ChatMessage, MonitorDevice
+from django.http import JsonResponse, StreamingHttpResponse, HttpResponse
+from django.urls import reverse
+from .models import ChatRoom, ChatMessage, MonitorDevice, AudioEvent
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import json
+import requests
+from rest_framework import viewsets
+from rest_framework.decorators import action
+from rest_framework.response import Response
+from .serializers import MonitorDeviceSerializer, AudioEventSerializer
+import logging
+import re
+from urllib.parse import urljoin
+
+logger = logging.getLogger(__name__)
 
 # Create your views here.
 
@@ -23,22 +34,11 @@ def delete_chat_history(request, room_name):
         return JsonResponse({"status": "error", "message": str(e)}, status=500)
 
 
-@csrf_exempt
-@require_http_methods(["GET"])
-def get_monitor_device(request, device_id):
-    try:
-        device = MonitorDevice.objects.get(id=device_id)
-        return JsonResponse(
-            {
-                "id": device.id,
-                "name": device.name,
-                "stream_url": device.stream_url,
-                "is_active": device.is_active,
-            }
-        )
-    except MonitorDevice.DoesNotExist:
-        return JsonResponse(
-            {"status": "error", "message": "Monitor device not found"}, status=404
-        )
-    except Exception as e:
-        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+class MonitorDeviceViewSet(viewsets.ModelViewSet):
+    queryset = MonitorDevice.objects.all()
+    serializer_class = MonitorDeviceSerializer
+
+
+class AudioEventViewSet(viewsets.ModelViewSet):
+    queryset = AudioEvent.objects.all()
+    serializer_class = AudioEventSerializer
