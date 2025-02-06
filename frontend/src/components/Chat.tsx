@@ -62,7 +62,7 @@ const Chat = () => {
   const [readyState, setReadyState] = useState<ReadyState>(
     WebSocket.CONNECTING
   );
-  const [updateKey, setUpdateKey] = useState(0); // Force re-render of relative times
+  const [isDeleting, setIsDeleting] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
   const updateIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -75,8 +75,6 @@ const Chat = () => {
     // Set new interval based on message ages
     const interval = hasRecentMessage(msgs) ? 1000 : 30000; // 1s or 30s
     updateIntervalRef.current = setInterval(() => {
-      setUpdateKey((prev) => prev + 1);
-
       // Dynamically adjust interval if needed
       if (interval === 1000 && !hasRecentMessage(msgs)) {
         setupUpdateInterval(msgs);
