@@ -184,7 +184,7 @@ const Chat = () => {
         className="chat-container"
         style={{
           height: "400px",
-          width: "300px",
+          width: "350px",
           overflowY: "auto",
           border: "2px solid #ccc",
           borderRadius: "8px",
