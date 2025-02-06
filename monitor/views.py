@@ -3,6 +3,7 @@ from django.http import JsonResponse
 from .models import ChatRoom, ChatMessage, MonitorDevice
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
+from .services.audio_monitor import AudioMonitorService
 import json
 
 # Create your views here.
@@ -36,6 +37,42 @@ def get_monitor_device(request, device_id):
                 "is_active": device.is_active,
             }
         )
+    except MonitorDevice.DoesNotExist:
+        return JsonResponse(
+            {"status": "error", "message": "Monitor device not found"}, status=404
+        )
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def start_monitoring(request, device_id):
+    try:
+        device = MonitorDevice.objects.get(id=device_id)
+        monitor = AudioMonitorService.get_monitor(device.id)
+        monitor.start()
+        device.is_active = True
+        device.save()
+        return JsonResponse({"status": "success", "message": "Monitoring started"})
+    except MonitorDevice.DoesNotExist:
+        return JsonResponse(
+            {"status": "error", "message": "Monitor device not found"}, status=404
+        )
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["POST"])
+def stop_monitoring(request, device_id):
+    try:
+        device = MonitorDevice.objects.get(id=device_id)
+        monitor = AudioMonitorService.get_monitor(device.id)
+        monitor.stop()
+        device.is_active = False
+        device.save()
+        return JsonResponse({"status": "success", "message": "Monitoring stopped"})
     except MonitorDevice.DoesNotExist:
         return JsonResponse(
             {"status": "error", "message": "Monitor device not found"}, status=404

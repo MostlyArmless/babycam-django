@@ -232,7 +232,11 @@ class AudioMonitorService:
                 # Save events
                 if alert_level != "NONE":
                     AudioEvent.objects.create(
-                        device=self.device, peak_value=peak, alert_level=alert_level
+                        device=self.device,
+                        peak_value=peak,
+                        alert_level=alert_level,
+                        timestamp=datetime.now(),
+                        recording_path=self.current_recording_path,
                     )
                     self.broadcast_level(peak, alert_level)
 

@@ -24,12 +24,13 @@ interface MonitorDevice {
 
 const AudioVideoMonitor = () => {
   const [device, setDevice] = useState<MonitorDevice | null>(null);
+  const [audioData, setAudioData] = useState<AudioMessage | null>(null);
   const deviceId = 1; // We'll use device ID 1 for now
 
   useEffect(() => {
     const fetchDevice = async () => {
       try {
-        const response = await fetch(`/api/monitor/${deviceId}/`);
+        const response = await fetch(`/api/device/${deviceId}`);
         if (!response.ok) {
           throw new Error("Failed to fetch device data");
         }
@@ -43,15 +44,17 @@ const AudioVideoMonitor = () => {
     fetchDevice();
   }, [deviceId]);
 
-  const { lastMessage, readyState } = useWebSocket(
+  const { readyState } = useWebSocket(
     `ws://localhost:8000/ws/monitor/${deviceId}/`,
     {
       onMessage: (event) => {
         console.log("Raw WebSocket message received:", event.data);
         try {
-          const parsed = JSON.parse(event.data);
-          // TODO
+          const parsed = JSON.parse(event.data) as WebSocketMessage;
           console.log("Parsed message:", parsed);
+          if (parsed.message.type === "audio_level") {
+            setAudioData(parsed.message);
+          }
         } catch (e) {
           console.error("Error parsing message:", e);
         }
@@ -62,29 +65,24 @@ const AudioVideoMonitor = () => {
     }
   );
 
-  // Parse the lastMessage into our expected format
-  const audioData = lastMessage
-    ? (JSON.parse(lastMessage.data) as WebSocketMessage)
-    : null;
-
   let audioDataView = audioData && (
     <div className="space-y-2">
       <div className="flex justify-between items-center">
         <span>Audio Level:</span>
-        <span className="font-mono">{audioData.message.peak}</span>
+        <span className="font-mono">{audioData.peak}</span>
       </div>
 
       <div className="w-full bg-gray-200 rounded-full h-2.5">
         <div
           className={`h-full rounded-full transition-all duration-300 ${
-            audioData.message.alert_level === "RED"
+            audioData.alert_level === "RED"
               ? "bg-red-500"
-              : audioData.message.alert_level === "YELLOW"
+              : audioData.alert_level === "YELLOW"
               ? "bg-yellow-500"
               : "bg-green-500"
           }`}
           style={{
-            width: `${Math.min((audioData.message.peak / 3000) * 100, 100)}%`,
+            width: `${Math.min((audioData.peak / 3000) * 100, 100)}%`,
           }}
         />
       </div>
@@ -93,14 +91,14 @@ const AudioVideoMonitor = () => {
         <span>Status:</span>
         <span
           className={`font-medium ${
-            audioData.message.alert_level === "RED"
+            audioData.alert_level === "RED"
               ? "text-red-500"
-              : audioData.message.alert_level === "YELLOW"
+              : audioData.alert_level === "YELLOW"
               ? "text-yellow-500"
               : "text-green-500"
           }`}
         >
-          {audioData.message.alert_level}
+          {audioData.alert_level}
         </span>
       </div>
     </div>
@@ -140,15 +138,12 @@ const AudioVideoMonitor = () => {
         <div className="text-xs text-gray-400 text-right">
           Last event at:{" "}
           {audioData
-            ? new Date(audioData.message.timestamp + "Z").toLocaleTimeString(
-                "en-US",
-                {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                  second: "2-digit",
-                  hour12: true,
-                }
-              )
+            ? new Date(audioData.timestamp + "Z").toLocaleTimeString("en-US", {
+                hour: "2-digit",
+                minute: "2-digit",
+                second: "2-digit",
+                hour12: true,
+              })
             : "N/A"}
         </div>
       </div>
