@@ -42,6 +42,10 @@ class AudioMonitorService:
         self.MIN_RECORDING_DURATION = 1  # seconds
         self.MAX_RECORDING_DURATION = 5  # seconds
         self.QUIET_PERIOD_THRESHOLD = 3  # seconds
+        self.BROADCAST_INTERVAL = 0.5  # seconds, minimum time between broadcasts
+        self.last_broadcast_time = 0
+        self.current_max_peak = 0  # Track max peak during broadcast interval
+        self.current_max_alert = "NONE"  # Track highest alert level during interval
         self.recording = False
         self.current_recording_path = None
         self.recording_start_time = None
@@ -197,6 +201,35 @@ class AudioMonitorService:
                     self.last_alert_time = time.time()
                     self.quiet_period_start = None
 
+                # Update max values for the current broadcast interval
+                if peak > self.current_max_peak:
+                    self.current_max_peak = peak
+                if alert_level in ["RED", "YELLOW"]:
+                    # Update to the highest severity alert level
+                    if alert_level == "RED" or (
+                        alert_level == "YELLOW" and self.current_max_alert == "NONE"
+                    ):
+                        self.current_max_alert = alert_level
+
+                # Check if it's time to broadcast
+                current_time = time.time()
+                if current_time - self.last_broadcast_time >= self.BROADCAST_INTERVAL:
+                    if self.current_max_alert != "NONE":
+                        # Save event with the max values from this interval
+                        AudioEvent.objects.create(
+                            device=self.device,
+                            peak_value=self.current_max_peak,
+                            alert_level=self.current_max_alert,
+                            timestamp=datetime.now(),
+                            recording_path=self.current_recording_path,
+                        )
+                        self.broadcast_level(
+                            self.current_max_peak, self.current_max_alert
+                        )
+                    # Reset max values for next interval
+                    self.current_max_peak = peak
+                    self.current_max_alert = alert_level
+
                 # Check recording status
                 if self.recording:
                     current_time = time.time()
@@ -229,17 +262,6 @@ class AudioMonitorService:
                     if should_stop:
                         self.stop_recording()
 
-                # Save events
-                if alert_level != "NONE":
-                    AudioEvent.objects.create(
-                        device=self.device,
-                        peak_value=peak,
-                        alert_level=alert_level,
-                        timestamp=datetime.now(),
-                        recording_path=self.current_recording_path,
-                    )
-                    self.broadcast_level(peak, alert_level)
-
                 time.sleep(0.01)  # Reduced sleep time
 
         except Exception as e:
@@ -252,6 +274,10 @@ class AudioMonitorService:
 
     def broadcast_level(self, peak, alert_level):
         """Send audio level update via WebSocket"""
+        current_time = time.time()
+        if current_time - self.last_broadcast_time < self.BROADCAST_INTERVAL:
+            return  # Skip broadcasting if we've broadcast too recently
+
         try:
             channel_layer = get_channel_layer()
             if channel_layer is None:
@@ -277,6 +303,7 @@ class AudioMonitorService:
                 group_name, {"type": "monitor_message", "message": message}
             )
             logger.debug(f"Broadcast complete: {peak} ({alert_level})")
+            self.last_broadcast_time = current_time
         except Exception as e:
             logger.error(f"Error broadcasting level: {e}", exc_info=True)
 
