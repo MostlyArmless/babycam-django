@@ -15,9 +15,36 @@ interface WebSocketMessage {
   message: AudioMessage;
 }
 
+interface MonitorDevice {
+  id: number;
+  name: string;
+  stream_url: string;
+  is_active: boolean;
+}
+
 const AudioVideoMonitor = () => {
+  const [device, setDevice] = useState<MonitorDevice | null>(null);
+  const deviceId = 1; // We'll use device ID 1 for now
+
+  useEffect(() => {
+    const fetchDevice = async () => {
+      try {
+        const response = await fetch(`/api/monitor/${deviceId}/`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch device data");
+        }
+        const data = await response.json();
+        setDevice(data);
+      } catch (error) {
+        console.error("Error fetching device data:", error);
+      }
+    };
+
+    fetchDevice();
+  }, [deviceId]);
+
   const { lastMessage, readyState } = useWebSocket(
-    "ws://localhost:8000/ws/monitor/1/",
+    `ws://localhost:8000/ws/monitor/${deviceId}/`,
     {
       onMessage: (event) => {
         console.log("Raw WebSocket message received:", event.data);
@@ -89,12 +116,13 @@ const AudioVideoMonitor = () => {
     return () => clearInterval(timer); // Cleanup on unmount
   }, []);
 
+  if (!device) {
+    return <div>Loading device data...</div>;
+  }
+
   return (
     <>
-      <WebcamVideoStream
-        // TODO get the IP from the server which in turn should get it from the .env file
-        streamUrl={"http://192.168.0.222:8080/video/live.m3u8"}
-      />
+      <WebcamVideoStream streamUrl={device.stream_url} />
 
       <div className="p-4">
         <WebsocketConnectionStatusBadge readyState={readyState} />

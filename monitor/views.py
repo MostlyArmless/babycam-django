@@ -1,6 +1,6 @@
 from django.shortcuts import render
 from django.http import JsonResponse
-from .models import ChatRoom, ChatMessage
+from .models import ChatRoom, ChatMessage, MonitorDevice
 from django.views.decorators.http import require_http_methods
 from django.views.decorators.csrf import csrf_exempt
 import json
@@ -18,6 +18,27 @@ def delete_chat_history(request, room_name):
     except ChatRoom.DoesNotExist:
         return JsonResponse(
             {"status": "error", "message": "Chat room not found"}, status=404
+        )
+    except Exception as e:
+        return JsonResponse({"status": "error", "message": str(e)}, status=500)
+
+
+@csrf_exempt
+@require_http_methods(["GET"])
+def get_monitor_device(request, device_id):
+    try:
+        device = MonitorDevice.objects.get(id=device_id)
+        return JsonResponse(
+            {
+                "id": device.id,
+                "name": device.name,
+                "stream_url": device.stream_url,
+                "is_active": device.is_active,
+            }
+        )
+    except MonitorDevice.DoesNotExist:
+        return JsonResponse(
+            {"status": "error", "message": "Monitor device not found"}, status=404
         )
     except Exception as e:
         return JsonResponse({"status": "error", "message": str(e)}, status=500)

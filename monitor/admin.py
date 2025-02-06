@@ -5,8 +5,15 @@ from .models import MonitorDevice, AudioEvent
 
 @admin.register(MonitorDevice)
 class MonitorDeviceAdmin(admin.ModelAdmin):
-    list_display = ("name", "is_active", "last_updated", "monitor_controls")
+    list_display = (
+        "name",
+        "stream_url",
+        "is_active",
+        "last_updated",
+        "monitor_controls",
+    )
     list_filter = ("is_active",)
+    list_editable = ("stream_url",)
 
     def monitor_controls(self, obj):
         return format_html(
