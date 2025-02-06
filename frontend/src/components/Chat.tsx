@@ -169,11 +169,26 @@ const Chat: React.FC<ChatProps> = ({ username }) => {
           <div
             key={index}
             className={`message ${message.user === "Me" ? "me" : "other"}`}
+            style={{
+              backgroundColor: "#f3f4f6",
+              borderRadius: "12px",
+              padding: "10px",
+              marginBottom: "12px",
+              maxWidth: "85%",
+              boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
+              border: "1px solid #e5e7eb",
+            }}
           >
-            <div>
+            <div style={{ marginBottom: "4px" }}>
               <strong>{message.user}:</strong> {message.text}
             </div>
-            <small className="text-gray-500">
+            <small
+              className="text-gray-500"
+              style={{
+                display: "block",
+                fontSize: "0.75rem",
+              }}
+            >
               {formatTimestamp(new Date(message.timestamp))} (
               {getRelativeTimeString(message.timestamp)})
             </small>
