@@ -138,6 +138,12 @@ const Chat = () => {
     console.log(`Sending message: ${messageString}`);
     wsRef.current.send(messageString);
     setInput("");
+
+    // Reset textarea height
+    const textarea = document.querySelector(".input-container textarea");
+    if (textarea) {
+      (textarea as HTMLTextAreaElement).style.height = "40px";
+    }
   };
 
   const handleDeleteHistory = async () => {
