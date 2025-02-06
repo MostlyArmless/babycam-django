@@ -1,0 +1,2 @@
+We use shadcn for components in this project, and since we're using vite for the frontend you'll add new components using `npx shadcn@latest add <componentName>`.
+You can find the list of possible components here: https://ui.shadcn.com/docs/components
